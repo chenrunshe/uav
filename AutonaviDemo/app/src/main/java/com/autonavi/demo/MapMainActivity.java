@@ -114,6 +114,9 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
                 startOfflineActivity();
             }
         });
+        bindService();
+        sdkListener();
+        getID();
     }
 
     @Override
@@ -797,5 +800,13 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
         }
     }
 
-
+    private void getID(){
+        try {
+            int id = SDK.getInstance().getID();
+            Toast.makeText(this, String.format("获取到ID：%s", id), Toast.LENGTH_SHORT).show();
+            sendData("hello junpeng.zeng".getBytes());
+        } catch (RemoteException e) {
+            e.printStackTrace();
+        }
+    }
 }
