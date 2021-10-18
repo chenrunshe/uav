@@ -16,15 +16,16 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.CancellationSignal;
 import android.os.IBinder;
+import android.os.PersistableBundle;
 import android.os.RemoteException;
 import android.util.Log;
 import android.view.View;
 import android.widget.EditText;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.amap.api.location.AMapLocation;
 import com.amap.api.location.AMapLocationClient;
@@ -75,8 +76,7 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
     private PoiSearch poiSearch;
     private myPoiOverlay poiOverlay;// poi图层
     private List<PoiItem> poiItems;// poi数据
-    private RelativeLayout mPoiDetail;
-    private RelativeLayout mSearchBar;
+
     private TextView mPoiName, mPoiAddress;
     private String keyWord = "";
     private String city = "北京市";
@@ -84,7 +84,7 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
 
     private boolean isLocationSuccess;
     private MyLocationStyle myLocationStyle;
-    private LocationSource.OnLocationChangedListener mListener;
+    private OnLocationChangedListener mListener;
     private AMapLocationClient mlocationClient;
     private AMapLocationClientOption mLocationOption;
     //是否需要检测后台定位权限，设置为true时，如果用户没有给予后台定位权限会弹窗提示
@@ -105,18 +105,19 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
         mapview = (MapView)findViewById(R.id.mapView);
         mapview.onCreate(savedInstanceState);
         init();
-        mSearchBar = (RelativeLayout)findViewById(R.id.search_bar_layout);
-        mSearchBar.setVisibility(View.INVISIBLE);
         isLocationSuccess = false;
         findViewById(R.id.startOfflineActivity).setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                startOfflineActivity();
+                //startOfflineActivity();
+                getID();
             }
         });
+        //initSDK(getApplication());
         bindService();
         sdkListener();
-        getID();
+        //getID();
+
     }
 
     @Override
@@ -205,26 +206,9 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
                     .position(new LatLng(lp.getLatitude(), lp.getLongitude())));
 
         }
-        setup();
         //mAMap.moveCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(lp.getLatitude(), lp.getLongitude()), 14));
     }
-    private void setup() {
-        mPoiDetail = (RelativeLayout) findViewById(R.id.poi_detail);
-        mPoiDetail.setOnClickListener(new View.OnClickListener() {
 
-            @Override
-            public void onClick(View v) {
-//				Intent intent = new Intent(PoiSearchActivity.this,
-//						SearchDetailActivity.class);
-//				intent.putExtra("poiitem", mPoi);
-//				startActivity(intent);
-
-            }
-        });
-        mPoiName = (TextView) findViewById(R.id.poi_name);
-        mPoiAddress = (TextView) findViewById(R.id.poi_address);
-        mSearchText = (EditText)findViewById(R.id.input_edittext);
-    }
     /**
      * 开始进行poi搜索
      */
@@ -260,7 +244,7 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
             }
         }
         mapview.onResume();
-        whetherToShowDetailInfo(false);
+
 
         new Thread(new Runnable() {
             @Override
@@ -329,7 +313,7 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
                             .getSearchSuggestionCitys();// 当搜索不到poiitem数据时，会返回含有搜索关键字的城市信息
                     if (poiItems != null && poiItems.size() > 0) {
                         //清除POI信息显示
-                        whetherToShowDetailInfo(false);
+
                         //并还原点击marker样式
                         if (mlastMarker != null) {
                             resetlastmarker();
@@ -379,7 +363,7 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
     public boolean onMarkerClick(Marker marker) {
 
         if (marker.getObject() != null) {
-            whetherToShowDetailInfo(true);
+
             try {
                 PoiItem mCurrentPoi = (PoiItem) marker.getObject();
                 if (mlastMarker == null) {
@@ -399,7 +383,6 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
                 // TODO: handle exception
             }
         }else {
-            whetherToShowDetailInfo(false);
             resetlastmarker();
         }
         return true;
@@ -467,19 +450,8 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
             R.drawable.poi_marker_10
     };
 
-    private void whetherToShowDetailInfo(boolean isToShow) {
-        if (isToShow) {
-            mPoiDetail.setVisibility(View.VISIBLE);
-
-        } else {
-            mPoiDetail.setVisibility(View.GONE);
-
-        }
-    }
-
     @Override
     public void onMapClick(LatLng arg0) {
-        whetherToShowDetailInfo(false);
         if (mlastMarker != null) {
             resetlastmarker();
         }
@@ -762,6 +734,11 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
         bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
     }
 
+    @Override
+    public void onCreate(@Nullable Bundle savedInstanceState, @Nullable PersistableBundle persistentState) {
+        super.onCreate(savedInstanceState, persistentState);
+    }
+
     private void initSDK(Application application){
         SDK.getInstance().initApp(application);
     }
@@ -769,6 +746,7 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
     private void sdkListener(){
         SDK.getInstance().initApp(getApplication(), connected -> {
             if(connected){
+                Log.d(TAG, "sdkListener");
                 SDK.getInstance().getDataCallBack(new DataCallback() {
                     @Override
                     public void onData(byte[] data) throws RemoteException {
