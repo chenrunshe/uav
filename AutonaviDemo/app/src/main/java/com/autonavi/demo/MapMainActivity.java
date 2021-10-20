@@ -52,8 +52,10 @@ import com.amap.api.services.poisearch.PoiSearch;
 import com.example.bt_com.SDK;
 import com.example.lanyatongxin.aidl.DataCallback;
 import com.example.lanyatongxin.aidl.DataInterface;
+import com.google.gson.Gson;
 
 import java.lang.reflect.Method;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Consumer;
@@ -125,6 +127,8 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
         super.onPerformDirectAction(actionId, arguments, cancellationSignal, resultListener);
     }
 
+    private AMapLocation tempAmapLocation=null;
+
     /**
      * 定位成功后回调函数
      */
@@ -144,6 +148,7 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
                 String errText = "定位失败," + amapLocation.getErrorCode()+ ": " + amapLocation.getErrorInfo();
                 Log.e("AmapErr",errText);
             }
+            tempAmapLocation=amapLocation;
         }
     }
 
@@ -750,15 +755,7 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
                 SDK.getInstance().getDataCallBack(new DataCallback() {
                     @Override
                     public void onData(byte[] data) throws RemoteException {
-                        StringBuilder sb = new StringBuilder();
-                        for (byte b : data) {
-                            if (sb.length() > 0) {
-                                sb.append(" ");
-                            }
-                            sb.append(String.format("%02x", b));
-                        }
-                        runOnUiThread(() -> Toast.makeText(getApplicationContext(),
-                                String.format("接收到数据%s", sb.toString()), Toast.LENGTH_SHORT).show());
+                        receiveGPS(data);
                     }
 
                     @Override
@@ -782,9 +779,76 @@ public class MapMainActivity extends Activity implements View.OnClickListener,
         try {
             int id = SDK.getInstance().getID();
             Toast.makeText(this, String.format("获取到ID：%s", id), Toast.LENGTH_SHORT).show();
-            sendData("hello junpeng.zeng".getBytes());
+            if(tempAmapLocation!=null)
+            {
+                sendGPS(id,tempAmapLocation);
+            }
         } catch (RemoteException e) {
             e.printStackTrace();
         }
+    }
+
+    private void sendGPS(int id,AMapLocation aMapLocation){
+        GeoLocation geoLocation=new GeoLocation();
+        geoLocation.id=id;
+        geoLocation.Latitude=aMapLocation.getLatitude();
+        geoLocation.Longitude=aMapLocation.getLongitude();
+        String geoLocationJson=new Gson().toJson(geoLocation);
+        Log.d(TAG, "sendGPS geoLocationJson="+geoLocationJson);
+        byte[] geoLocationByte=geoLocationJson.getBytes(StandardCharsets.US_ASCII);
+        int length=geoLocationByte.length;
+        byte[] tempData=new byte[1+1+1+2+2+length];
+        byte[] data=new byte[1+1+1+2+2+length+1];
+        tempData[0]=(byte)0xFE;
+        data[0]=(byte)0xFE;
+        tempData[1]=(byte)(1+2+2+length);
+        data[1]=(byte)(1+2+2+length);
+        tempData[2]=(byte)0x02;
+        data[2]=(byte)0x02;
+        byte[] senderIdByte=Utils.short2byte((short) id);
+        tempData[3]=senderIdByte[0];
+        data[3]=senderIdByte[0];
+        tempData[4]=senderIdByte[1];
+        data[4]=senderIdByte[1];
+        tempData[5]=(byte)0xFF;
+        data[5]=(byte)0xFF;
+        tempData[6]=(byte)0xFF;
+        data[6]=(byte)0xFF;
+        for(int i=0;i<length;i++) {
+            tempData[7+i]=geoLocationByte[i];
+            data[7+i]=geoLocationByte[i];
+        }
+        data[7+length]=Utils.getXORCheck(tempData);
+        Log.d(TAG, "sendDataByte="+data.toString());
+        sendData(data);
+    }
+
+    private GeoLocation receiveGPS(byte[] data)
+    {
+        GeoLocation geoLocation=new GeoLocation();
+        StringBuilder sb = new StringBuilder();
+        for (byte b : data) {
+            if (sb.length() > 0) {
+                sb.append(" ");
+            }
+            sb.append(String.format("%02x", b));
+        }
+        runOnUiThread(() -> Toast.makeText(getApplicationContext(), String.format("接收到数据%s", sb.toString()), Toast.LENGTH_SHORT).show());
+
+        int length=data[1]-1-2-2;
+        if(data[2]==0x02) {
+            byte[] senderIdByte=new byte[2];
+            senderIdByte[0]=data[3];
+            senderIdByte[0]=data[4];
+            byte[] geoLocationByte=new byte[length];
+            for(int i=0;i<length;i++) {
+                geoLocationByte[i]=data[7+i];
+            }
+            String geoLocationJson=new String(geoLocationByte,StandardCharsets.US_ASCII);
+            Log.d(TAG, "receiveGPS geoLocationJson="+geoLocationJson);
+            geoLocation=new Gson().fromJson(geoLocationJson,GeoLocation.class);
+            geoLocation.id=(int)Utils.byte2short(senderIdByte);
+        }
+        return geoLocation;
     }
 }
